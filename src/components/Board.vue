@@ -1,19 +1,20 @@
 <template>
   <div id="board" :style="{height:'43.5rem', width:'43.5rem'}">
-    <div v-for="rows in board">
+    <div v-for="(row, rowIndex) in board" :key="rowIndex">
       <button
         class="space"
+        v-for="(item, columnIndex) in row"
+        @click="checkSpace(rowIndex, columnIndex)"
+        :key="rowIndex + ' ' + columnIndex"
         :class="spaceClass(item)"
-        v-for="item in rows"
-        @click="checkSpace(item.i, item.j)"
-        :key="item.i + ' ' + item.j"
+        :style="{'width': 'calc(40rem / ' + boardSize, 'height': 'calc(40rem / ' + boardSize,
+         'margin-left' : 'calc(3.5rem /' + boardSize, 'margin-bottom': 'calc(3.5rem / ' + boardSize}"
       >
         {{item.visited ? item.isBomb ? '' : item.nearbyBombs > 0 ? item.nearbyBombs : '' : ''}}
         <i
           class="fas fa-bomb"
           v-if="item.isBomb && !item.flagged && item.visited"
         ></i>
-
         <i class="fas fa-flag" v-if="item.flagged"></i>
       </button>
     </div>
@@ -24,29 +25,14 @@ export default {
   data() {
     return {
       board: [],
-      bombCount: 50,
+      bombCount: 30,
+      boardSize: 15,
       flags: 50,
       visitedPlaces: 0,
       gameEnded: false
     };
   },
   mounted() {
-    for (let i = 0; i < 20; i++) {
-      let row = [];
-      for (let j = 0; j < 20; j++)
-        row.push({
-          value: i * 20 + j + 1,
-          i,
-          j,
-          visited: false,
-          flagged: false,
-          isBomb: 0,
-          nearbyBombs: 0
-        });
-      this.board.push(row);
-    }
-
-    this.randomizeBombs(this.bombCount);
     this.boardSetup();
 
     let instance = this;
@@ -62,32 +48,37 @@ export default {
   methods: {
     checkSpace(i, j) {
       let item = this.board[i][j];
+
       if (this.gameEnded) return;
       if (item.visited || item.flagged) return;
+      if (item.isBomb) this.endGame(0);
+
       item.visited = true;
       this.visitedPlaces++;
-      if (item.isBomb) {
-        this.endGame(0);
-      } else if (item.nearbyBombs > 0) {
-      } else {
-        let dl = [-1, -1, 0, 1, 1, 1, 0, -1];
-        let dc = [0, 1, 1, 1, 0, -1, -1, -1];
 
-        for (let dir = 0; dir < 8; dir++) {
-          let newRow = item.i + dl[dir];
-          let newCol = item.j + dc[dir];
+      if (item.nearbyBombs > 0) return;
 
-          if (newRow >= 0 && newCol >= 0 && newRow < 20 && newCol < 20)
-            this.checkSpace(newRow, newCol);
-        }
+      let dl = [-1, -1, 0, 1, 1, 1, 0, -1];
+      let dc = [0, 1, 1, 1, 0, -1, -1, -1];
+
+      for (let dir = 0; dir < 8; dir++) {
+        let newRow = i + dl[dir];
+        let newCol = j + dc[dir];
+
+        if (
+          newRow >= 0 &&
+          newCol >= 0 &&
+          newRow < this.boardSize &&
+          newCol < this.boardSize
+        )
+          this.checkSpace(newRow, newCol);
       }
-      console.log(this.visitedPlaces);
       if (this.visitedPlaces == 350) this.endGame(1);
     },
     randomizeBombs(bombs) {
       while (bombs) {
-        let ranX = Math.floor(Math.random() * 20);
-        let ranY = Math.floor(Math.random() * 20);
+        let ranX = Math.floor(Math.random() * this.boardSize);
+        let ranY = Math.floor(Math.random() * this.boardSize);
 
         if (!this.board[ranX][ranY].isBomb) {
           this.board[ranX][ranY].isBomb = 1;
@@ -95,28 +86,55 @@ export default {
         }
       }
     },
-    boardSetup() {
-      let dl = [-1, -1, 0, 1, 1, 1, 0, -1];
-      let dc = [0, 1, 1, 1, 0, -1, -1, -1];
+    getRowOfSpaces() {
+      let row = [];
+      for (let j = 0; j < this.boardSize; j++) {
+        row.push({
+          visited: false,
+          flagged: false,
+          isBomb: 0,
+          nearbyBombs: 0
+        });
+      }
+      return row;
+    },
+    drawBoxes() {
+      for (let i = 0; i < this.boardSize; i++) {
+        this.board.push(this.getRowOfSpaces());
+      }
+    },
+    countNearbyBombs(item, i, j) {
+      let deltaY = [-1, -1, 0, 1, 1, 1, 0, -1];
+      let deltaX = [0, 1, 1, 1, 0, -1, -1, -1];
+      let nearbyBombs = 0;
+      for (let dir = 0; dir < 8; dir++) {
+        let newRow = i + deltaY[dir];
+        let newCol = j + deltaX[dir];
 
-      for (let i = 0; i < 20; i++)
-        for (let j = 0; j < 20; j++) {
-          if (this.board[i][j].isBomb) {
-            this.board[i][j].nearbyBombs = Infinity;
+        if (
+          newRow >= 0 &&
+          newCol >= 0 &&
+          newRow < this.boardSize &&
+          newCol < this.boardSize
+        )
+          if (this.board[newRow][newCol].isBomb) {
+            nearbyBombs++;
+          }
+      }
+
+      item.nearbyBombs = nearbyBombs;
+    },
+    boardSetup() {
+      this.drawBoxes();
+      this.randomizeBombs(this.bombCount);
+      for (let i = 0; i < this.boardSize; i++)
+        for (let j = 0; j < this.boardSize; j++) {
+          var item = this.board[i][j];
+          if (item.isBomb) {
+            item.nearbyBombs = Infinity;
             continue;
           }
-          let nearbyBombs = 0;
-          for (let dir = 0; dir < 8; dir++) {
-            let newRow = i + dl[dir];
-            let newCol = j + dc[dir];
-
-            if (newRow >= 0 && newCol >= 0 && newRow < 20 && newCol < 20)
-              if (this.board[newRow][newCol].isBomb) {
-                nearbyBombs++;
-              }
-          }
-
-          this.board[i][j].nearbyBombs = nearbyBombs;
+          this.countNearbyBombs(item, i, j);
         }
     },
     endGame(won) {
@@ -130,13 +148,18 @@ export default {
       let places = document.getElementsByClassName("space");
       let index = 0;
       let instance = this;
-      for (let i = 0; i < 20; i++) {
-        for (let j = 0; j < 20; j++) {
+      for (let i = 0; i < this.boardSize; i++) {
+        for (let j = 0; j < this.boardSize; j++) {
           places[index].addEventListener(
             "contextmenu",
             function(ev) {
               ev.preventDefault();
               if (instance._data.board[i][j].visited) return false;
+              if (
+                instance._data.flags == 0 &&
+                !instance._data.board[i][j].flagged
+              )
+                return;
               instance._data.board[i][j].flagged = !instance._data.board[i][j]
                 .flagged;
               if (instance._data.board[i][j].flagged === false) {
@@ -181,11 +204,7 @@ export default {
   background: #4d595e;
   float: left;
   border: 1px solid black;
-  width: 2rem;
   border-radius: 0.2rem;
-  margin-left: 0.15rem;
-  margin-bottom: 0.15rem;
-  height: 2rem;
 }
 
 .space.visited {

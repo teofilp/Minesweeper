@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <div class="board_header">
-      <h5>Mines remaining: {{flags}}</h5>
+      <h5>Flags remaining: {{flags}}</h5>
       <h3 class="elapsed_time">{{getTitle}}</h3>
     </div>
 
@@ -16,7 +16,7 @@ export default {
       seconds: 0,
       counter: undefined,
       gameEnded: false,
-      won: undefined,
+      won: false,
       flags: 50
     };
   },
